@@ -31,12 +31,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .login-logo{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:3px}.login-logo span{color:var(--acc)}
 .login-sub{color:var(--t3);font-size:12px;margin-bottom:24px}
 .login-error{background:var(--red-g);color:var(--red);padding:10px 14px;border-radius:var(--r);font-size:12px;font-weight:500;margin-bottom:14px;display:none}
-.login-accounts{margin-top:18px;padding-top:14px;border-top:1px solid var(--bdr)}
-.login-accounts-title{font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:600}
-.login-acc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.login-acc{padding:7px 10px;border-radius:var(--r);background:var(--bg3);border:1px solid var(--bdr);cursor:pointer;transition:all var(--tr);text-align:left}
-.login-acc:hover{background:var(--bg4);border-color:var(--bdr2)}
-.login-acc-name{font-size:11px;font-weight:600}.login-acc-role{font-size:9px;color:var(--t3);margin-top:1px}
 .fg{margin-bottom:14px}
 .fl{display:block;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 .fl-hint{font-weight:400;text-transform:none;color:var(--t4)}
@@ -195,7 +189,7 @@ tbody tr:last-child td{border-bottom:none}
       </div>
     </div>
     <nav class="side-nav" id="sideNav"></nav>
-    <div class="side-foot"><button class="btn btn-s btn-w btn-sm" onclick="doLogout()">⎋ Sign Out</button></div>
+    <div class="side-foot"><button class="btn btn-s btn-w btn-sm" style="margin-bottom:6px" onclick="openChangePwd()">🔑 Change Password</button><button class="btn btn-s btn-w btn-sm" onclick="doLogout()">⎋ Sign Out</button></div>
   </aside>
   <main class="main-c">
     <div class="top">
@@ -328,6 +322,30 @@ async function doLogin(){
 async function doLogout(){
   await api('/api/logout',{method:'POST'}).catch(()=>{});
   CU=null;PERMS=null;showLogin();
+}
+
+function openChangePwd(){
+  $el('modalC').classList.remove('hidden');
+  $el('modalC').innerHTML=`<div class="md-ov" onclick="closeMd()"></div><div class="md"><div class="md-h"><div class="md-t">🔑 Change Password</div><button class="md-x" onclick="closeMd()">✕</button></div><div class="md-b">
+    <div class="fg"><label class="fl">Current Password</label><input class="fi" type="password" id="cpCur" placeholder="Enter current password"></div>
+    <div class="fg"><label class="fl">New Password</label><input class="fi" type="password" id="cpNew" placeholder="Enter new password (min 4 chars)"></div>
+    <div class="fg"><label class="fl">Confirm New Password</label><input class="fi" type="password" id="cpConfirm" placeholder="Confirm new password"></div>
+    <div id="cpError" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none"></div>
+    <div class="fr2"><button class="btn btn-s" onclick="closeMd()">Cancel</button><button class="btn btn-p" onclick="doChangePwd()">Update Password</button></div>
+  </div></div>`;
+}
+
+async function doChangePwd(){
+  const cur=$el('cpCur').value, nw=$el('cpNew').value, conf=$el('cpConfirm').value;
+  const err=$el('cpError');
+  err.style.display='none';
+  if(!cur||!nw||!conf){err.textContent='All fields are required';err.style.display='block';return}
+  if(nw.length<4){err.textContent='New password must be at least 4 characters';err.style.display='block';return}
+  if(nw!==conf){err.textContent='New passwords do not match';err.style.display='block';return}
+  try{
+    await api('/api/me/password',{method:'PUT',body:{currentPassword:cur,newPassword:nw}});
+    closeMd();toast('Password updated successfully');
+  }catch(e){err.textContent=e.message||'Failed to update password';err.style.display='block'}
 }
 function showLogin(){
   $el('appWrap').classList.add('hidden');$el('loginPage').classList.remove('hidden');

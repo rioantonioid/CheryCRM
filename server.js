@@ -68,6 +68,18 @@ app.post('/api/login', (req, res) => {
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ ok: true }); });
 app.get('/api/me', auth, (req, res) => res.json({ user: req.user, permissions: RC[req.user.role] }));
 
+// ══════ CHANGE PASSWORD ══════
+app.put('/api/me/password', auth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new password required' });
+  if (newPassword.length < 4) return res.status(400).json({ error: 'New password must be at least 4 characters' });
+  const user = get('SELECT * FROM users WHERE id=?', [req.user.id]);
+  if (!bcrypt.compareSync(currentPassword, user.password))
+    return res.status(403).json({ error: 'Current password is incorrect' });
+  run('UPDATE users SET password=? WHERE id=?', [bcrypt.hashSync(newPassword, 10), user.id]);
+  res.json({ ok: true });
+});
+
 // ══════ LEADS ══════
 app.get('/api/leads', auth, (req, res) => res.json(visibleLeads(req.user)));
 app.post('/api/leads', auth, (req, res) => {
