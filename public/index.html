@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoLead CRM — Dealership Lead Management</title>
+<title>CheryBatam CRM — Chery Lead Management System</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -173,16 +173,12 @@ tbody tr:last-child td{border-bottom:none}
 <!-- LOGIN -->
 <div id="loginPage" class="login-page">
   <div class="login-box">
-    <div class="login-logo">Auto<span>Lead</span></div>
-    <div class="login-sub">New Car Dealership — Lead Management System</div>
+    <div class="login-logo">Chery<span>Batam</span></div>
+    <div class="login-sub">Chery Lead Management System</div>
     <div class="login-error" id="loginError"></div>
     <div class="fg"><label class="fl">Username</label><input class="fi" id="loginUser" placeholder="Enter username"></div>
     <div class="fg"><label class="fl">Password</label><input class="fi" id="loginPass" type="password" placeholder="Enter password"></div>
     <button class="btn btn-p btn-w" onclick="doLogin()" style="padding:12px">Sign In</button>
-    <div class="login-accounts">
-      <div class="login-accounts-title">Demo Accounts <span style="color:var(--t4)">(password: pass123 · admin: admin123)</span></div>
-      <div class="login-acc-grid" id="quickLogins"></div>
-    </div>
   </div>
 </div>
 
@@ -191,7 +187,7 @@ tbody tr:last-child td{border-bottom:none}
   <div class="side-ov hidden" id="sideOv" onclick="toggleSide()"></div>
   <aside class="side" id="side">
     <div class="side-head">
-      <div class="side-logo">Auto<span>Lead</span></div>
+      <div class="side-logo">Chery<span>Batam</span></div>
       <div class="side-ubox">
         <div class="side-uname" id="sUname"></div>
         <div class="side-urole" id="sUrole"></div>
@@ -336,22 +332,6 @@ async function checkSession(){
   }catch(e){showLogin()}
 }
 
-// Quick login buttons (hardcoded demo accounts)
-const DEMO_ACCOUNTS=[
-  {u:'director',p:'pass123',n:'Tan Wei Ming',r:'Director'},
-  {u:'admin',p:'admin123',n:'Nurul Hana',r:'Admin'},
-  {u:'branchmgr',p:'pass123',n:'Ahmad Razak',r:'Branch Manager'},
-  {u:'salesmgr',p:'pass123',n:'Lim Mei Ling',r:'Sales Manager'},
-  {u:'supv_ali',p:'pass123',n:'Ali bin Hassan',r:'Supervisor'},
-  {u:'supv_siti',p:'pass123',n:'Siti Nurhaliza',r:'Supervisor'},
-  {u:'sarah',p:'pass123',n:'Sarah Rahman',r:'Sales'},
-  {u:'james',p:'pass123',n:'James Ong',r:'Sales'},
-  {u:'farah',p:'pass123',n:'Farah Aminah',r:'Sales'},
-  {u:'kevin',p:'pass123',n:'Kevin Loh',r:'Sales'},
-];
-$el('quickLogins').innerHTML=DEMO_ACCOUNTS.map(a=>
-  `<div class="login-acc" onclick="$el('loginUser').value='${a.u}';$el('loginPass').value='${a.p}';doLogin()"><div class="login-acc-name">${a.n}</div><div class="login-acc-role">${a.r}</div></div>`
-).join('');
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!$el('loginPage').classList.contains('hidden'))doLogin()});
 
 /* ═══════════════════════════════════════

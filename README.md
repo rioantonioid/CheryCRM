@@ -21,20 +21,13 @@ npm start
 
 Then open **http://localhost:3000**
 
-## Demo Accounts
+## Default Account
 
 | Username | Password | Role |
 |---|---|---|
-| director | pass123 | Director |
-| admin | admin123 | Admin |
-| branchmgr | pass123 | Branch Manager |
-| salesmgr | pass123 | Sales Manager |
-| supv_ali | pass123 | Supervisor |
-| supv_siti | pass123 | Supervisor |
-| sarah | pass123 | Sales |
-| james | pass123 | Sales |
-| farah | pass123 | Sales |
-| kevin | pass123 | Sales |
+| admin | admin123 | Admin (full access) |
+
+> **First thing after deploy:** Log in as admin → Users → change the password and add your team members.
 
 ## Tech Stack
 

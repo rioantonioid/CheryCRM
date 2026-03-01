@@ -89,37 +89,14 @@ function seedData() {
 
   const h = pw => bcrypt.hashSync(pw, 10);
   const users = [
-    [1,'director',h('pass123'),'Tan Wei Ming','director',null],
-    [2,'admin',h('admin123'),'Nurul Hana','admin',null],
-    [3,'branchmgr',h('pass123'),'Ahmad Razak','branch_manager',null],
-    [4,'salesmgr',h('pass123'),'Lim Mei Ling','sales_manager',null],
-    [5,'supv_ali',h('pass123'),'Ali bin Hassan','supervisor',null],
-    [6,'supv_siti',h('pass123'),'Siti Nurhaliza','supervisor',null],
-    [7,'sarah',h('pass123'),'Sarah Rahman','sales',5],
-    [8,'james',h('pass123'),'James Ong','sales',5],
-    [9,'farah',h('pass123'),'Farah Aminah','sales',6],
-    [10,'kevin',h('pass123'),'Kevin Loh','sales',6],
+    [1,'admin',h('admin123'),'Nurul Hana','admin',null],
   ];
   users.forEach(u => db.run(
     'INSERT INTO users (id,username,password,fullName,role,supervisorId,active,createdAt) VALUES (?,?,?,?,?,?,1,?)',
     [...u, '2026-01-01']
   ));
 
-  const leads = [
-    ['Rizal Hakim','+60 12-345 6789','SUV','Walk-in','2026-02-20','Interested','2026-02-25','Interested in Honda CR-V.','sarah','2026-02-20'],
-    ['Nurul Aisyah','+60 13-987 6543','Sedan','Website','2026-02-19','New','2026-02-24','Inquired Honda Civic pricing.','james','2026-02-19'],
-    ['David Tan','+60 11-222 3344','Hatchback','Referral','2026-02-18','Test Drive','2026-02-22','Test drove Honda Jazz.','sarah','2026-02-18'],
-    ['Priya Devi','+60 16-555 7788','SUV','Social Media','2026-02-17','Negotiation','2026-02-21','Negotiating Honda HR-V.','james','2026-02-17'],
-    ['Michael Lee','+60 12-111 9999','Electric','Auto Show','2026-02-15','Sold',null,'Purchased Honda e:N1.','farah','2026-02-15'],
-    ['Siti Fatimah','+60 19-876 5432','MPV','Phone Call','2026-02-14','Lost',null,'Chose Toyota Veloz.','farah','2026-02-14'],
-    ['Jason Wong','+60 17-333 4455','Sedan','Online Ads','2026-02-22','New','2026-02-26','Google Ad click.','kevin','2026-02-22'],
-    ['Amirah Hassan','+60 14-666 7788','Hybrid','Walk-in','2026-02-21','Contacted','2026-02-24','Showed City Hybrid.','kevin','2026-02-21'],
-    ['Ahmad Faisal','+60 18-999 1122','SUV','Referral','2026-02-23','New','2026-02-27','Referred by Michael Lee.','sarah','2026-02-23'],
-    ['Jenny Tan','+60 12-444 5566','Sedan','Website','2026-02-22','Contacted','2026-02-25','Requested Civic RS spec.','farah','2026-02-22'],
-  ];
-  leads.forEach(l => db.run(
-    'INSERT INTO leads (name,phone,carType,source,date,status,followUp,notes,createdBy,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)', l
-  ));
+  // No demo leads - start fresh
 
   const settings = {
     statuses: ['New','Contacted','Interested','Test Drive','Negotiation','Hot','Warm','Cold','Sold','Lost'],
@@ -135,7 +112,7 @@ function seedData() {
     db.run('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)', [k, JSON.stringify(v)])
   );
 
-  console.log('✅ Database seeded with demo data');
+  console.log('✅ Admin account created (username: admin)');
 }
 
 module.exports = { getDb, run, get, all, lastId, persist };

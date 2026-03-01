@@ -137,7 +137,7 @@ app.put('/api/users/:id', auth, mgr, (req, res) => {
   res.json(get('SELECT id,username,fullName,role,supervisorId,active,createdAt FROM users WHERE id=?', [user.id]));
 });
 app.delete('/api/users/:id', auth, mgr, (req, res) => {
-  if (Number(req.params.id) === 1) return res.status(400).json({ error: 'Cannot delete primary director' });
+  if (Number(req.params.id) === 1) return res.status(400).json({ error: 'Cannot delete the admin account' });
   run('DELETE FROM users WHERE id=?', [req.params.id]);
   res.json({ ok: true });
 });
@@ -171,7 +171,7 @@ app.get('/api/export/csv', auth, (req, res) => {
       `"${(l.notes||'').replace(/"/g,'""')}"`,u?u.fullName:l.createdBy,sup?sup.fullName:'—',l.createdAt].join(',') + '\n';
   });
   res.setHeader('Content-Type','text/csv');
-  res.setHeader('Content-Disposition',`attachment; filename=AutoLead_${req.user.role}_${new Date().toISOString().split('T')[0]}.csv`);
+  res.setHeader('Content-Disposition',`attachment; filename=CheryBatam_${req.user.role}_${new Date().toISOString().split('T')[0]}.csv`);
   res.send(csv);
 });
 
@@ -181,5 +181,5 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 // Start
 (async () => {
   await getDb();
-  app.listen(PORT, () => console.log(`\n🚗 AutoLead CRM running at http://localhost:${PORT}\n`));
+  app.listen(PORT, () => console.log(`\n🚗 CheryBatam CRM running at http://localhost:${PORT}\n`));
 })();
