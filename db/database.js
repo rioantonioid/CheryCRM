@@ -76,9 +76,10 @@ function initSchema() {
   db.run(`CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT NOT NULL,
     carType TEXT DEFAULT 'Sedan', source TEXT DEFAULT 'Walk-in',
-    date TEXT NOT NULL DEFAULT (date('now')), status TEXT DEFAULT 'New',
+    date TEXT NOT NULL DEFAULT (date('now')), status TEXT DEFAULT 'Hot',
     followUp TEXT, notes TEXT, createdBy TEXT NOT NULL,
-    createdAt TEXT NOT NULL DEFAULT (date('now'))
+    createdAt TEXT NOT NULL DEFAULT (date('now')),
+    updatedAt TEXT, updatedBy TEXT
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
 }
@@ -99,13 +100,15 @@ function seedData() {
   // No demo leads - start fresh
 
   const settings = {
-    statuses: ['New','Contacted','Interested','Test Drive','Negotiation','Hot','Warm','Cold','Sold','Lost'],
-    sources: ['Walk-in','Phone Call','Website','Social Media','Referral','Auto Show','Online Ads','Other'],
+    statuses: ['Hot','Warm','Cold','SPK','LOST'],
+    sources: ['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex'],
     carTypes: ['Sedan','SUV','Hatchback','MPV','Pickup Truck','Coupe','Convertible','Electric','Hybrid','Commercial'],
     statusColors: {
-      New:'#3B82F6',Contacted:'#F59E0B',Interested:'#06B6D4','Test Drive':'#A78BFA',
-      Negotiation:'#F59E0B',Sold:'#22C55E',Lost:'#EF4444',Hot:'#EF4444',
-      Warm:'#F59E0B',Cold:'#06B6D4',Pending:'#64748B'
+      Hot:'#EF4444',Warm:'#F59E0B',Cold:'#3B82F6',SPK:'#22C55E',LOST:'#64748B'
+    },
+    sourceColors: {
+      'Walk-in':'#3B82F6','Social Media':'#A78BFA',Ads:'#EF4444',
+      Referral:'#F59E0B',Exhibition:'#EC4899',Event:'#06B6D4',Movex:'#22C55E'
     }
   };
   Object.entries(settings).forEach(([k, v]) =>

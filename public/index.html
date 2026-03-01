@@ -233,14 +233,22 @@ const PERM_DESC={
 
 // Status color map
 let STATUS_COLORS={
+  Hot:'#EF4444',Warm:'#F59E0B',Cold:'#3B82F6',SPK:'#22C55E',LOST:'#64748B',
   New:'#3B82F6',Contacted:'#F59E0B',Interested:'#06B6D4','Test Drive':'#A78BFA',
   Negotiation:'#F59E0B',Sold:'#22C55E',Lost:'#EF4444','Follow Up':'#F59E0B',
-  Hot:'#EF4444',Closed:'#22C55E',Warm:'#F59E0B',Cold:'#06B6D4',
-  Pending:'#64748B',Won:'#22C55E',Booked:'#22C55E',Cancelled:'#EF4444',
-  'No Answer':'#64748B',Callback:'#F59E0B',Confirmed:'#22C55E'
+  Closed:'#22C55E',Pending:'#64748B',Won:'#22C55E',Booked:'#22C55E',
+  Cancelled:'#EF4444','No Answer':'#64748B',Callback:'#F59E0B',Confirmed:'#22C55E'
+};
+let SOURCE_COLORS={
+  'Walk-in':'#3B82F6','Social Media':'#A78BFA',Ads:'#EF4444',
+  Referral:'#F59E0B',Exhibition:'#EC4899',Event:'#06B6D4',Movex:'#22C55E',
+  'Phone Call':'#22C55E',Website:'#06B6D4','Auto Show':'#EC4899',
+  'Online Ads':'#EF4444',Other:'#64748B'
 };
 function sC(s){return STATUS_COLORS[s]||'#64748B'}
-function sBg(s){const c=sC(s);return c+'1F'}
+function sBg(s){return sC(s)+'1F'}
+function srcCol(s){return SOURCE_COLORS[s]||'#64748B'}
+function srcBg(s){return srcCol(s)+'1F'}
 
 // Global state
 let CU=null; // current user
@@ -276,9 +284,11 @@ async function loadAll(){
   LEADS=leads;USERS=users;
   SETTINGS={
     statuses:settings.statuses||[],sources:settings.sources||[],
-    carTypes:settings.carTypes||[],statusColors:settings.statusColors||{}
+    carTypes:settings.carTypes||[],statusColors:settings.statusColors||{},
+    sourceColors:settings.sourceColors||{}
   };
   Object.assign(STATUS_COLORS,SETTINGS.statusColors);
+  Object.assign(SOURCE_COLORS,SETTINGS.sourceColors);
 }
 
 /* ═══════════════════════════════════════
@@ -370,10 +380,10 @@ function toast(m){const c=$el('toastC');c.innerHTML=`<div class="toast">✓ ${m}
    ═══════════════════════════════════════ */
 function renderDash(){
   const leads=LEADS;const sts=SETTINGS.statuses;
-  const total=leads.length,sold=leads.filter(l=>l.status==='Sold').length;
-  const active=leads.filter(l=>!['Sold','Lost'].includes(l.status)).length;
+  const total=leads.length,spk=leads.filter(l=>l.status==='SPK').length;
+  const hot=leads.filter(l=>l.status==='Hot').length;
   const td=new Date().toISOString().split('T')[0];
-  const fups=leads.filter(l=>l.followUp&&l.followUp<=td&&!['Sold','Lost'].includes(l.status)).length;
+  const fups=leads.filter(l=>l.followUp&&l.followUp<=td&&!['SPK','LOST'].includes(l.status)).length;
 
   $el('topA').innerHTML=`<button class="btn btn-p btn-sm" onclick="openLF()">+ New Lead</button>`;
 
@@ -390,29 +400,43 @@ function renderDash(){
 
   let h=hb+`<div class="sg">`;
   [{l:'Total Leads',v:total,c:'#3B82F6',bg:'rgba(59,130,246,.12)'},
-   {l:'Active Pipeline',v:active,c:'#06B6D4',bg:'rgba(6,182,212,.12)'},
-   {l:'Sold',v:sold,c:'#22C55E',bg:'rgba(34,197,94,.12)'},
+   {l:'Hot',v:hot,c:'#EF4444',bg:'rgba(239,68,68,.12)'},
+   {l:'SPK',v:spk,c:'#22C55E',bg:'rgba(34,197,94,.12)'},
    {l:'Follow Ups Due',v:fups,c:'#F59E0B',bg:'rgba(245,158,11,.12)'}
   ].forEach(s=>{h+=`<div class="sc"><div class="sc-bar" style="background:${s.c}"></div><div class="sc-icon" style="background:${s.bg}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${s.c}" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div><div class="sc-v" style="color:${s.c}">${s.v}</div><div class="sc-l">${s.l}</div></div>`});
   h+=`</div>`;
 
   const sc=sts.map(s=>({s,c:leads.filter(l=>l.status===s).length}));const mx=Math.max(...sc.map(x=>x.c),1);
-  const srcs=SETTINGS.sources;const srcC=srcs.map(s=>({s,c:leads.filter(l=>l.source===s).length})).filter(x=>x.c>0).sort((a,b)=>b.c-a.c);const mxS=Math.max(...srcC.map(x=>x.c),1);
+  const srcs=SETTINGS.sources;const srcC=srcs.map(s=>({s,c:leads.filter(l=>l.source===s).length})).filter(x=>x.c>0).sort((a,b)=>b.c-a.c);const mxS=Math.max(...srcC.map(x=>x.c),1);const srcTotal=srcC.reduce((a,x)=>a+x.c,0);
   h+=`<div class="chart-row"><div class="chart-card"><div class="chart-title">Leads by Status</div><div class="bar-chart">${sc.map(x=>`<div class="bar-col"><div class="bar-v" style="color:${sC(x.s)}">${x.c}</div><div class="bar-f" style="height:${(x.c/mx)*100}px;background:${sC(x.s)}"></div><div class="bar-l">${x.s}</div></div>`).join('')}</div></div>
-  <div class="chart-card"><div class="chart-title">Leads by Source</div>${srcC.length?srcC.map(x=>`<div class="h-bar"><div class="h-bar-label">${x.s}</div><div class="h-bar-track"><div class="h-bar-fill" style="width:${(x.c/mxS)*100}%;background:#3B82F6"></div></div><div class="h-bar-val">${x.c}</div></div>`).join(''):'<div class="empty-s">No data</div>'}</div></div>`;
+  <div class="chart-card"><div class="chart-title">Leads by Source <span style="font-weight:400;color:var(--t3)">(${srcTotal} total)</span></div>${srcC.length?srcC.map(x=>`<div class="h-bar"><div class="h-bar-label">${x.s}</div><div class="h-bar-track"><div class="h-bar-fill" style="width:${(x.c/mxS)*100}%;background:${srcCol(x.s)}"></div></div><div class="h-bar-val">${x.c}</div></div>`).join(''):'<div class="empty-s">No data</div>'}</div></div>`;
 
   if(pViewAll()){
-    const salesUsers=USERS.filter(u=>u.role==='sales'&&u.active);const allL=LEADS;
-    const perf=salesUsers.map(u=>({n:u.fullName,sup:userById(u.supervisorId),t:allL.filter(l=>l.createdBy===u.username).length,s:allL.filter(l=>l.createdBy===u.username&&l.status==='Sold').length})).sort((a,b)=>b.t-a.t);
+    const salesUsers=USERS.filter(u=>u.role==='sales'&&u.active);const allL=LEADS;const today=new Date().toISOString().split('T')[0];
+    const perf=salesUsers.map(u=>{
+      const uLeads=allL.filter(l=>l.createdBy===u.username);
+      const todayCount=allL.filter(l=>(l.updatedAt===today&&l.updatedBy===u.username)||(l.createdAt===today&&l.createdBy===u.username&&!l.updatedAt)).length;
+      return {n:u.fullName,sup:userById(u.supervisorId),t:uLeads.length,s:uLeads.filter(l=>l.status==='SPK').length,td:todayCount};
+    }).sort((a,b)=>b.t-a.t);
     const mxP=Math.max(...perf.map(x=>x.t),1);
-    h+=`<div class="chart-card" style="margin-bottom:20px"><div class="chart-title">Sales Performance by Person</div>${perf.map(x=>`<div class="h-bar"><div class="h-bar-label">${x.n}<br><span style="font-size:8px;color:var(--t4)">Sup: ${x.sup?x.sup.fullName:'—'}</span></div><div class="h-bar-track"><div class="h-bar-fill" style="width:${(x.t/mxP)*100}%;background:#3B82F6"></div></div><div class="h-bar-val">${x.t} <span style="color:#22C55E;font-size:9px">${x.s}✓</span></div></div>`).join('')}</div>`;
+    h+=`<div class="chart-card" style="margin-bottom:20px"><div class="chart-title">Sales Performance by Person</div>${perf.map(x=>{
+      const low=x.td<3;
+      return `<div class="h-bar"><div class="h-bar-label"><span style="${low?'color:#EF4444;font-weight:700':''}">${x.n}</span>${low?'<span style="font-size:8px;color:#EF4444;margin-left:4px">⚠ '+x.td+' today</span>':' <span style="font-size:8px;color:#22C55E">✓ '+x.td+' today</span>'}<br><span style="font-size:8px;color:var(--t4)">Sup: ${x.sup?x.sup.fullName:'—'}</span></div><div class="h-bar-track"><div class="h-bar-fill" style="width:${(x.t/mxP)*100}%;background:${low?'#EF4444':'#3B82F6'}"></div></div><div class="h-bar-val">${x.t} <span style="color:#22C55E;font-size:9px">${x.s} SPK</span></div></div>`;
+    }).join('')}</div>`;
   }
 
   if(CU.role==='supervisor'){
-    const teamU=USERS.filter(u=>u.supervisorId===CU.id&&u.active);
-    const perf=teamU.map(u=>({n:u.fullName,t:LEADS.filter(l=>l.createdBy===u.username).length,s:LEADS.filter(l=>l.createdBy===u.username&&l.status==='Sold').length})).sort((a,b)=>b.t-a.t);
+    const teamU=USERS.filter(u=>u.supervisorId===CU.id&&u.active);const today2=new Date().toISOString().split('T')[0];
+    const perf=teamU.map(u=>{
+      const uLeads=LEADS.filter(l=>l.createdBy===u.username);
+      const todayCount=LEADS.filter(l=>(l.updatedAt===today2&&l.updatedBy===u.username)||(l.createdAt===today2&&l.createdBy===u.username&&!l.updatedAt)).length;
+      return {n:u.fullName,t:uLeads.length,s:uLeads.filter(l=>l.status==='SPK').length,td:todayCount};
+    }).sort((a,b)=>b.t-a.t);
     const mxP=Math.max(...perf.map(x=>x.t),1);
-    if(perf.length) h+=`<div class="chart-card" style="margin-bottom:20px"><div class="chart-title">My Team Performance</div>${perf.map(x=>`<div class="h-bar"><div class="h-bar-label">${x.n}</div><div class="h-bar-track"><div class="h-bar-fill" style="width:${(x.t/mxP)*100}%;background:#F59E0B"></div></div><div class="h-bar-val">${x.t} <span style="color:#22C55E;font-size:9px">${x.s}✓</span></div></div>`).join('')}</div>`;
+    if(perf.length) h+=`<div class="chart-card" style="margin-bottom:20px"><div class="chart-title">My Team Performance</div>${perf.map(x=>{
+      const low=x.td<3;
+      return `<div class="h-bar"><div class="h-bar-label"><span style="${low?'color:#EF4444;font-weight:700':''}">${x.n}</span>${low?'<span style="font-size:8px;color:#EF4444;margin-left:4px">⚠ '+x.td+' today</span>':' <span style="font-size:8px;color:#22C55E">✓ '+x.td+' today</span>'}</div><div class="h-bar-track"><div class="h-bar-fill" style="width:${(x.t/mxP)*100}%;background:${low?'#EF4444':'#F59E0B'}"></div></div><div class="h-bar-val">${x.t} <span style="color:#22C55E;font-size:9px">${x.s} SPK</span></div></div>`;
+    }).join('')}</div>`;
   }
 
   h+=`<div class="tc"><div class="th"><div class="th-t">Recent Leads</div></div><table><thead><tr><th>Name</th><th>Car</th><th>Status</th><th>Source</th><th>Sales</th><th>Supervisor</th><th>Follow Up</th></tr></thead><tbody>${leads.slice(0,10).map(lRow).join('')}</tbody></table></div>`;
@@ -421,8 +445,8 @@ function renderDash(){
 
 function lRow(l){
   const u=userByUn(l.createdBy);const sup=u?userById(u.supervisorId):null;
-  const od=l.followUp&&l.followUp<=new Date().toISOString().split('T')[0]&&!['Sold','Lost'].includes(l.status);
-  return `<tr onclick="openLD(${l.id})"><td><strong style="font-size:12px">${l.name}</strong><div style="font-size:10px;color:var(--t4)">${l.phone}</div></td><td style="font-size:11px">${l.carType}</td><td><span class="badge" style="background:${sBg(l.status)};color:${sC(l.status)}"><span class="bdot" style="background:${sC(l.status)}"></span>${l.status}</span></td><td style="color:var(--t3);font-size:10px">${l.source}</td><td style="font-size:11px">${u?u.fullName:l.createdBy}</td><td style="font-size:10px;color:var(--t4)">${sup?sup.fullName:'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;${od?'color:var(--red);font-weight:600':'color:var(--t3)'}">${l.followUp||'—'}${od?' ⚠':''}</td></tr>`;
+  const od=l.followUp&&l.followUp<=new Date().toISOString().split('T')[0]&&!['SPK','LOST'].includes(l.status);
+  return `<tr onclick="openLD(${l.id})"><td><strong style="font-size:12px">${l.name}</strong><div style="font-size:10px;color:var(--t4)">${l.phone}</div></td><td style="font-size:11px">${l.carType}</td><td><span class="badge" style="background:${sBg(l.status)};color:${sC(l.status)}"><span class="bdot" style="background:${sC(l.status)}"></span>${l.status}</span></td><td><span class="badge" style="background:${srcBg(l.source)};color:${srcCol(l.source)};font-size:9px"><span class="bdot" style="background:${srcCol(l.source)}"></span>${l.source}</span></td><td style="font-size:11px">${u?u.fullName:l.createdBy}</td><td style="font-size:10px;color:var(--t4)">${sup?sup.fullName:'—'}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;${od?'color:var(--red);font-weight:600':'color:var(--t3)'}">${l.followUp||'—'}${od?' ⚠':''}</td></tr>`;
 }
 
 /* ═══════════════════════════════════════
@@ -457,9 +481,9 @@ function filt(){
   if(!f.length){b.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-i">📋</div><div class="empty-t">No leads found</div></div></td></tr>`;return}
   b.innerHTML=f.map(l=>{
     const u=userByUn(l.createdBy);const sup=u?userById(u.supervisorId):null;
-    const od=l.followUp&&l.followUp<=new Date().toISOString().split('T')[0]&&!['Sold','Lost'].includes(l.status);
+    const od=l.followUp&&l.followUp<=new Date().toISOString().split('T')[0]&&!['SPK','LOST'].includes(l.status);
     const canE=CU.role!=='sales'||l.createdBy===CU.username;
-    return `<tr onclick="openLD(${l.id})"><td><strong style="font-size:12px">${l.name}</strong><div style="font-size:9px;color:var(--t4)">${l.phone}</div></td><td style="font-size:11px">${l.carType}</td><td><span class="badge" style="background:${sBg(l.status)};color:${sC(l.status)}"><span class="bdot" style="background:${sC(l.status)}"></span>${l.status}</span></td><td style="color:var(--t3);font-size:10px">${l.source}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${l.date}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;${od?'color:var(--red);font-weight:600':'color:var(--t3)'}">${l.followUp||'—'}${od?' ⚠':''}</td><td style="font-size:11px">${u?u.fullName:l.createdBy}</td><td style="font-size:10px;color:var(--t4)">${sup?sup.fullName:'—'}</td><td><div class="acell">${canE?`<button class="abtn" onclick="event.stopPropagation();openLF(${l.id})">✎</button><button class="abtn del" onclick="event.stopPropagation();delL(${l.id})">✕</button>`:''}</div></td></tr>`;
+    return `<tr onclick="openLD(${l.id})"><td><strong style="font-size:12px">${l.name}</strong><div style="font-size:9px;color:var(--t4)">${l.phone}</div></td><td style="font-size:11px">${l.carType}</td><td><span class="badge" style="background:${sBg(l.status)};color:${sC(l.status)}"><span class="bdot" style="background:${sC(l.status)}"></span>${l.status}</span></td><td><span class="badge" style="background:${srcBg(l.source)};color:${srcCol(l.source)};font-size:9px"><span class="bdot" style="background:${srcCol(l.source)}"></span>${l.source}</span></td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--t3)">${l.date}</td><td style="font-size:10px;font-family:'JetBrains Mono',monospace;${od?'color:var(--red);font-weight:600':'color:var(--t3)'}">${l.followUp||'—'}${od?' ⚠':''}</td><td style="font-size:11px">${u?u.fullName:l.createdBy}</td><td style="font-size:10px;color:var(--t4)">${sup?sup.fullName:'—'}</td><td><div class="acell">${canE?`<button class="abtn" onclick="event.stopPropagation();openLF(${l.id})">✎</button><button class="abtn del" onclick="event.stopPropagation();delL(${l.id})">✕</button>`:''}</div></td></tr>`;
   }).join('');
 }
 
@@ -506,7 +530,7 @@ function openLD(id){
   const l=LEADS.find(x=>x.id===id);if(!l)return;
   const u=userByUn(l.createdBy);const sup=u?userById(u.supervisorId):null;
   const sts=SETTINGS.statuses;
-  const od=l.followUp&&l.followUp<=new Date().toISOString().split('T')[0]&&!['Sold','Lost'].includes(l.status);
+  const od=l.followUp&&l.followUp<=new Date().toISOString().split('T')[0]&&!['SPK','LOST'].includes(l.status);
   const canE=CU.role!=='sales'||l.createdBy===CU.username;
 
   $el('detailC').classList.remove('hidden');
@@ -519,7 +543,7 @@ function openLD(id){
     <div class="dp-b">
       <div class="ds"><span class="badge" style="background:${sBg(l.status)};color:${sC(l.status)};font-size:11px;padding:5px 13px"><span class="bdot" style="background:${sC(l.status)}"></span>${l.status}</span></div>
       <div class="ds"><div class="ds-t">Details</div>
-        ${[{l:'Phone',v:l.phone},{l:'Car Type',v:l.carType},{l:'Source',v:l.source},{l:'Date',v:l.date},{l:'Follow Up',v:l.followUp?(od?`<span style="color:var(--red);font-weight:600">${l.followUp} ⚠ OVERDUE</span>`:l.followUp):'—'},{l:'Sales Person',v:u?`${u.fullName} <span class="badge rc-${u.role}" style="font-size:8px;padding:1px 6px">${rLabel(u.role)}</span>`:l.createdBy},{l:'Supervisor',v:sup?sup.fullName:'—'},{l:'Created',v:l.createdAt}].map(f=>`<div class="df"><div><div class="df-l">${f.l}</div><div class="df-v">${f.v}</div></div></div>`).join('')}
+        ${[{l:'Phone',v:l.phone},{l:'Car Type',v:l.carType},{l:'Source',v:`<span class="badge" style="background:${srcBg(l.source)};color:${srcCol(l.source)};font-size:10px"><span class="bdot" style="background:${srcCol(l.source)}"></span>${l.source}</span>`},{l:'Date',v:l.date},{l:'Follow Up',v:l.followUp?(od?`<span style="color:var(--red);font-weight:600">${l.followUp} ⚠ OVERDUE</span>`:l.followUp):'—'},{l:'Sales Person',v:u?`${u.fullName} <span class="badge rc-${u.role}" style="font-size:8px;padding:1px 6px">${rLabel(u.role)}</span>`:l.createdBy},{l:'Supervisor',v:sup?sup.fullName:'—'},{l:'Created',v:l.createdAt}].map(f=>`<div class="df"><div><div class="df-l">${f.l}</div><div class="df-v">${f.v}</div></div></div>`).join('')}
       </div>
       ${l.notes?`<div class="ds"><div class="ds-t">Notes</div><div style="font-size:12px;line-height:1.6;color:var(--t2);background:var(--bg3);padding:10px 12px;border-radius:var(--r);border:1px solid var(--bdr)">${l.notes}</div></div>`:''}
       ${canE?`<div class="ds"><div class="ds-t">Update Status</div><div class="spills">${sts.map(s=>`<button class="spill ${l.status===s?'act':''}" style="${l.status===s?`background:${sC(s)}`:''}" onclick="updSt(${l.id},'${s}')">${s}</button>`).join('')}</div></div>`:''}
@@ -538,8 +562,8 @@ function renderTeam(){
   $el('topA').innerHTML='';
   let h=`<div class="hbar">📋 <strong>${CU.fullName}</strong> — Supervisor <span class="hbar-sep">→</span> <strong>${team.length}</strong> sales members</div><div class="usr-grid">`;
   team.forEach(u=>{
-    const leads=LEADS.filter(l=>l.createdBy===u.username);const sold=leads.filter(l=>l.status==='Sold').length;
-    h+=`<div class="usr-card"><div class="usr-av rc-sales">${initials(u.fullName)}</div><div><div class="usr-name">${u.fullName}</div><div class="usr-meta">@${u.username} · ${leads.length} leads · <span style="color:#22C55E">${sold} sold</span></div></div></div>`;
+    const leads=LEADS.filter(l=>l.createdBy===u.username);const spk=leads.filter(l=>l.status==='SPK').length;
+    h+=`<div class="usr-card"><div class="usr-av rc-sales">${initials(u.fullName)}</div><div><div class="usr-name">${u.fullName}</div><div class="usr-meta">@${u.username} · ${leads.length} leads · <span style="color:#22C55E">${spk} SPK</span></div></div></div>`;
   });
   h+=`</div>`;
   if(!team.length) h+=`<div class="empty"><div class="empty-t">No team members assigned</div></div>`;
@@ -629,16 +653,29 @@ function renderSets(){
     {id:'#EF4444',label:'Red'},{id:'#A78BFA',label:'Purple'},{id:'#06B6D4',label:'Cyan'},
     {id:'#EC4899',label:'Pink'},{id:'#64748B',label:'Gray'}
   ];
+  const colorDots=(pickerId,selIdx)=>COLOR_CHOICES.map((c,i)=>`<div class="color-opt ${i===selIdx?'sel':''}" data-color="${c.id}" style="background:${c.id}" onclick="pickColor(this,'${pickerId}')" title="${c.label}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>`).join('');
 
   let statusHTML=`<div class="set-card"><div class="set-title">Lead Statuses</div>
-    <div style="font-size:10px;color:var(--t4);margin-bottom:10px">Customize pipeline stages.</div>
+    <div style="font-size:10px;color:var(--t4);margin-bottom:10px">Customize pipeline stages with color coding.</div>
     <div class="tag-list">${statuses.map(s=>{
       const c=sC(s);
       return `<span class="tag color-tag" style="background:${c}1F;color:${c};border-color:${c}33"><span class="bdot" style="background:${c};width:6px;height:6px;border-radius:50%"></span>${s}<span class="tag-x" onclick="rmSetting('statuses','${s}')">✕</span></span>`;
     }).join('')}</div>
     <div style="margin-top:10px">
       <div class="add-row"><input class="fi" id="newStatus" placeholder="New status name..." onkeydown="if(event.key==='Enter')addStatus()"><button class="btn btn-p btn-sm" onclick="addStatus()">Add</button></div>
-      <div class="color-opts" id="colorPicker">${COLOR_CHOICES.map((c,i)=>`<div class="color-opt ${i===0?'sel':''}" data-color="${c.id}" style="background:${c.id}" onclick="pickColor(this)" title="${c.label}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>`).join('')}</div>
+      <div class="color-opts" id="statusColorPicker">${colorDots('statusColorPicker',0)}</div>
+    </div>
+  </div>`;
+
+  let sourceHTML=`<div class="set-card"><div class="set-title">Lead Sources</div>
+    <div style="font-size:10px;color:var(--t4);margin-bottom:10px">Where leads originate from. Each source has its own color.</div>
+    <div class="tag-list">${sources.map(s=>{
+      const c=srcCol(s);
+      return `<span class="tag color-tag" style="background:${c}1F;color:${c};border-color:${c}33"><span class="bdot" style="background:${c};width:6px;height:6px;border-radius:50%"></span>${s}<span class="tag-x" onclick="rmSetting('sources','${s}')">✕</span></span>`;
+    }).join('')}</div>
+    <div style="margin-top:10px">
+      <div class="add-row"><input class="fi" id="newSource" placeholder="New source name..." onkeydown="if(event.key==='Enter')addSource()"><button class="btn btn-p btn-sm" onclick="addSource()">Add</button></div>
+      <div class="color-opts" id="sourceColorPicker">${colorDots('sourceColorPicker',0)}</div>
     </div>
   </div>`;
 
@@ -654,26 +691,39 @@ function renderSets(){
         <strong style="color:var(--t2)">Supervisor</strong> — View only their team's leads, export team data<br>
         <strong style="color:var(--t2)">Sales</strong> — View ONLY own leads, assigned to a supervisor
       </div></div>`+
-    statusHTML+
-    mkSec('Lead Sources','sources',sources,'Where leads originate from.')+
+    statusHTML+sourceHTML+
     mkSec('Car Types','carTypes',carTypes,'Vehicle categories at your dealership.');
 }
 
-function pickColor(el){
-  document.querySelectorAll('#colorPicker .color-opt').forEach(o=>o.classList.remove('sel'));
+function pickColor(el,pickerId){
+  document.querySelectorAll('#'+pickerId+' .color-opt').forEach(o=>o.classList.remove('sel'));
   el.classList.add('sel');
 }
 
 async function addStatus(){
   const input=$el('newStatus');const name=input.value.trim();
   if(!name)return;
-  const sel=document.querySelector('#colorPicker .color-opt.sel');
+  const sel=document.querySelector('#statusColorPicker .color-opt.sel');
   const color=sel?sel.dataset.color:'#64748B';
   const statuses=[...SETTINGS.statuses,name];
   const colors={...SETTINGS.statusColors,[name]:color};
   try{
     await api('/api/settings/statuses',{method:'PUT',body:{value:statuses}});
     await api('/api/settings/statusColors',{method:'PUT',body:{value:colors}});
+    toast('Added: '+name);await loadAll();renderSets();
+  }catch(e){toast(e.message)}
+}
+
+async function addSource(){
+  const input=$el('newSource');const name=input.value.trim();
+  if(!name)return;
+  const sel=document.querySelector('#sourceColorPicker .color-opt.sel');
+  const color=sel?sel.dataset.color:'#64748B';
+  const sources=[...SETTINGS.sources,name];
+  const colors={...SETTINGS.sourceColors,[name]:color};
+  try{
+    await api('/api/settings/sources',{method:'PUT',body:{value:sources}});
+    await api('/api/settings/sourceColors',{method:'PUT',body:{value:colors}});
     toast('Added: '+name);await loadAll();renderSets();
   }catch(e){toast(e.message)}
 }
@@ -693,6 +743,10 @@ async function rmSetting(key,val){
     if(key==='statuses'){
       const colors={...SETTINGS.statusColors};delete colors[val];
       await api('/api/settings/statusColors',{method:'PUT',body:{value:colors}});
+    }
+    if(key==='sources'){
+      const colors={...SETTINGS.sourceColors};delete colors[val];
+      await api('/api/settings/sourceColors',{method:'PUT',body:{value:colors}});
     }
     toast('Removed');await loadAll();renderSets();
   }catch(e){toast(e.message)}

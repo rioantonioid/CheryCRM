@@ -74,8 +74,8 @@ app.post('/api/leads', auth, (req, res) => {
   const { name, phone, carType, source, date, status, followUp, notes } = req.body;
   if (!name || !phone) return res.status(400).json({ error: 'Name and phone required' });
   const td = new Date().toISOString().split('T')[0];
-  run('INSERT INTO leads (name,phone,carType,source,date,status,followUp,notes,createdBy,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [name, phone, carType||'Sedan', source||'Walk-in', date||td, status||'New', followUp||null, notes||null, req.user.username, td]);
+  run('INSERT INTO leads (name,phone,carType,source,date,status,followUp,notes,createdBy,createdAt,updatedAt,updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    [name, phone, carType||'Sedan', source||'Walk-in', date||td, status||'Hot', followUp||null, notes||null, req.user.username, td, td, req.user.username]);
   res.json(get('SELECT * FROM leads WHERE id=?', [lastId()]));
 });
 app.put('/api/leads/:id', auth, (req, res) => {
@@ -84,14 +84,16 @@ app.put('/api/leads/:id', auth, (req, res) => {
   if (!RC[req.user.role].viewAll && req.user.role !== 'supervisor' && lead.createdBy !== req.user.username)
     return res.status(403).json({ error: 'Cannot edit this lead' });
   const { name, phone, carType, source, date, status, followUp, notes } = req.body;
-  run('UPDATE leads SET name=?,phone=?,carType=?,source=?,date=?,status=?,followUp=?,notes=? WHERE id=?',
-    [name||lead.name, phone||lead.phone, carType||lead.carType, source||lead.source, date||lead.date, status||lead.status, followUp??lead.followUp, notes??lead.notes, lead.id]);
+  const td = new Date().toISOString().split('T')[0];
+  run('UPDATE leads SET name=?,phone=?,carType=?,source=?,date=?,status=?,followUp=?,notes=?,updatedAt=?,updatedBy=? WHERE id=?',
+    [name||lead.name, phone||lead.phone, carType||lead.carType, source||lead.source, date||lead.date, status||lead.status, followUp??lead.followUp, notes??lead.notes, td, req.user.username, lead.id]);
   res.json(get('SELECT * FROM leads WHERE id=?', [lead.id]));
 });
 app.patch('/api/leads/:id/status', auth, (req, res) => {
   const { status } = req.body;
   if (!status) return res.status(400).json({ error: 'Status required' });
-  run('UPDATE leads SET status=? WHERE id=?', [status, req.params.id]);
+  const td = new Date().toISOString().split('T')[0];
+  run('UPDATE leads SET status=?,updatedAt=?,updatedBy=? WHERE id=?', [status, td, req.user.username, req.params.id]);
   res.json(get('SELECT * FROM leads WHERE id=?', [req.params.id]));
 });
 app.delete('/api/leads/:id', auth, (req, res) => {
