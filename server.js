@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({limit:'10mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'autolead-crm-secret-change-this',
@@ -23,8 +23,8 @@ const RC = {
   director:       { level:5, viewAll:true, canExport:true, canUsers:true, canSettings:true },
   admin:          { level:5, viewAll:true, canExport:true, canUsers:true, canSettings:true },
   branch_manager: { level:4, viewAll:true, canExport:true, canUsers:true, canSettings:true },
-  sales_manager:  { level:3, viewAll:true, canExport:true, canUsers:true, canSettings:false },
-  supervisor:     { level:2, viewAll:false, canExport:true, canUsers:false, canSettings:false },
+  sales_manager:  { level:3, viewAll:true, canExport:true, canUsers:true, canSettings:true },
+  supervisor:     { level:2, viewAll:false, canExport:false, canUsers:false, canSettings:false },
   sales:          { level:1, viewAll:false, canExport:false, canUsers:false, canSettings:false },
 };
 const MGR_ROLES = ['director','admin','branch_manager','sales_manager'];

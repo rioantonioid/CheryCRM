@@ -75,7 +75,7 @@ function initSchema() {
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT NOT NULL,
-    carType TEXT DEFAULT 'Sedan', source TEXT DEFAULT 'Walk-in',
+    carType TEXT DEFAULT 'Tiggo 8 Comfort', source TEXT DEFAULT 'Walk-in',
     date TEXT NOT NULL DEFAULT (date('now')), status TEXT DEFAULT 'Hot',
     followUp TEXT, notes TEXT, createdBy TEXT NOT NULL,
     createdAt TEXT NOT NULL DEFAULT (date('now')),
@@ -102,7 +102,7 @@ function seedData() {
   const settings = {
     statuses: ['Hot','Warm','Cold','SPK','LOST'],
     sources: ['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex'],
-    carTypes: ['Sedan','SUV','Hatchback','MPV','Pickup Truck','Coupe','Convertible','Electric','Hybrid','Commercial'],
+    carTypes: ['Tiggo 8 Comfort','Tiggo 8 Premium','Tiggo Cross Comfort','Tiggo Cross Premium','Tiggo Cross CSH','Chery E5','Chery C5 Z','Chery C5 RZ','Chery C5 CSH','J6 FWD','J6 IWD','J6T FWD','J6T IWD','Omoda GT FWD','Tiggo 9 CSH'],
     statusColors: {
       Hot:'#EF4444',Warm:'#F59E0B',Cold:'#3B82F6',SPK:'#22C55E',LOST:'#64748B'
     },
