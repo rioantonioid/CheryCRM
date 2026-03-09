@@ -107,17 +107,47 @@ app.post('/api/save', auth, (req, res) => {
   try {
     switch(key) {
       case 'al_leads': {
-        // Full leads replacement — clear and re-insert
-        run('DELETE FROM leads');
-        if (Array.isArray(value)) {
-          value.forEach(l => {
+        // SMART MERGE: Only touch leads this user can see, preserve everyone else's
+        if (!Array.isArray(value)) break;
+        const u = req.user;
+        const cfg = RC[u.role];
+
+        // Get IDs of leads this user could previously see
+        let visibleIds;
+        if (cfg.viewAll) {
+          visibleIds = new Set(all('SELECT id FROM leads').map(r => r.id));
+        } else if (u.role === 'supervisor') {
+          const team = all('SELECT username FROM users WHERE supervisorId=?', [u.id]).map(x => x.username);
+          team.push(u.username);
+          const ph = team.map(() => '?').join(',');
+          visibleIds = new Set(all(`SELECT id FROM leads WHERE createdBy IN (${ph})`, team).map(r => r.id));
+        } else {
+          visibleIds = new Set(all('SELECT id FROM leads WHERE createdBy=?', [u.username]).map(r => r.id));
+        }
+
+        const incomingIds = new Set(value.map(l => l.id));
+
+        // Upsert all incoming leads
+        value.forEach(l => {
+          const exists = get('SELECT id FROM leads WHERE id=?', [l.id]);
+          if (exists) {
+            run(`UPDATE leads SET name=?,phone=?,carType=?,source=?,date=?,status=?,followUp=?,notes=?,createdBy=?,createdAt=?,updatedAt=?,updatedBy=?,spkSection=?,spkDate=?,doSection=?,doDate=?,doPhoto=? WHERE id=?`,
+              [l.name, l.phone, l.carType||'Sedan', l.source||'Walk-in', l.date||td, l.status||'Hot',
+               l.followUp||null, l.notes||null, l.createdBy, l.createdAt||td, l.updatedAt||td, l.updatedBy||null,
+               l.spkSection?1:0, l.spkDate||null, l.doSection?1:0, l.doDate||null, l.doPhoto||null, l.id]);
+          } else {
             run(`INSERT INTO leads (id,name,phone,carType,source,date,status,followUp,notes,createdBy,createdAt,updatedAt,updatedBy,spkSection,spkDate,doSection,doDate,doPhoto)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
               [l.id, l.name, l.phone, l.carType||'Sedan', l.source||'Walk-in', l.date||td, l.status||'Hot',
                l.followUp||null, l.notes||null, l.createdBy, l.createdAt||td, l.updatedAt||td, l.updatedBy||null,
                l.spkSection?1:0, l.spkDate||null, l.doSection?1:0, l.doDate||null, l.doPhoto||null]);
-          });
-        }
+          }
+        });
+
+        // Delete only leads that were visible to this user but are no longer in their list (user deleted them)
+        visibleIds.forEach(id => {
+          if (!incomingIds.has(id)) run('DELETE FROM leads WHERE id=?', [id]);
+        });
         break;
       }
       case 'al_users': {
@@ -148,28 +178,39 @@ app.post('/api/save', auth, (req, res) => {
         break;
       }
       case 'al_activities': {
-        run('DELETE FROM activities');
+        // Smart merge — upsert by id, don't delete others
         if (Array.isArray(value)) {
           value.forEach(a => {
-            run('INSERT INTO activities (id,leadId,user,action,detail,date,time) VALUES (?,?,?,?,?,?,?)',
-              [a.id, a.leadId, a.user, a.action, a.detail||'', a.date||td, a.time||tm]);
+            const exists = get('SELECT id FROM activities WHERE id=?', [a.id]);
+            if (!exists) {
+              run('INSERT INTO activities (id,leadId,user,action,detail,date,time) VALUES (?,?,?,?,?,?,?)',
+                [a.id, a.leadId, a.user, a.action, a.detail||'', a.date||td, a.time||tm]);
+            }
           });
         }
         break;
       }
       case 'al_checkins': {
-        run('DELETE FROM checkins');
+        // Append new checkins only
         if (Array.isArray(value)) {
           value.forEach(c => {
-            run('INSERT INTO checkins (user,date,time) VALUES (?,?,?)', [c.user, c.date, c.time]);
+            const exists = get('SELECT id FROM checkins WHERE user=? AND date=?', [c.user, c.date]);
+            if (!exists) {
+              run('INSERT INTO checkins (user,date,time) VALUES (?,?,?)', [c.user, c.date, c.time]);
+            }
           });
         }
         break;
       }
       case 'al_sim_approved': {
-        run('DELETE FROM sim_approved');
+        // Sync approved list
         if (Array.isArray(value)) {
-          value.forEach(k => run('INSERT OR IGNORE INTO sim_approved (groupKey) VALUES (?)', [k]));
+          const existing = new Set(all('SELECT groupKey FROM sim_approved').map(r => r.groupKey));
+          const incoming = new Set(value);
+          // Add new approvals
+          value.forEach(k => { if (!existing.has(k)) run('INSERT OR IGNORE INTO sim_approved (groupKey) VALUES (?)', [k]); });
+          // Remove revoked approvals
+          existing.forEach(k => { if (!incoming.has(k)) run('DELETE FROM sim_approved WHERE groupKey=?', [k]); });
         }
         break;
       }
