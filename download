@@ -1,4 +1,105 @@
-node_modules/
-db/autolead.db
-.env
-*.log
+const initSqlJs = require('sql.js');
+const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
+
+const DB_PATH = path.join(__dirname, 'autolead.db');
+let db = null;
+
+async function getDb() {
+  if (db) return db;
+  const SQL = await initSqlJs();
+  if (fs.existsSync(DB_PATH)) {
+    const buf = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(buf);
+  } else {
+    db = new SQL.Database();
+  }
+  initSchema();
+  seedData();
+  persist();
+  return db;
+}
+
+function persist() { if (!db) return; fs.writeFileSync(DB_PATH, Buffer.from(db.export())); }
+function run(sql, params = []) { db.run(sql, params); persist(); }
+function get(sql, params = []) {
+  const stmt = db.prepare(sql); stmt.bind(params);
+  if (stmt.step()) { const cols = stmt.getColumnNames(), vals = stmt.get(), row = {}; cols.forEach((c, i) => row[c] = vals[i]); stmt.free(); return row; }
+  stmt.free(); return null;
+}
+function all(sql, params = []) {
+  const stmt = db.prepare(sql); stmt.bind(params); const rows = [];
+  while (stmt.step()) { const cols = stmt.getColumnNames(), vals = stmt.get(), row = {}; cols.forEach((c, i) => row[c] = vals[i]); rows.push(row); }
+  stmt.free(); return rows;
+}
+function lastId() { const r = get('SELECT last_insert_rowid() as id'); return r ? r.id : null; }
+
+function initSchema() {
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL, fullName TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'sales',
+    supervisorId INTEGER, active INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT NOT NULL DEFAULT (date('now'))
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT NOT NULL,
+    carType TEXT DEFAULT 'Tiggo 8 Comfort', source TEXT DEFAULT 'Walk-in',
+    date TEXT NOT NULL DEFAULT (date('now')), status TEXT DEFAULT 'Hot',
+    followUp TEXT, notes TEXT, createdBy TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (date('now')), updatedAt TEXT, updatedBy TEXT,
+    spkSection INTEGER DEFAULT 0, spkDate TEXT,
+    doSection INTEGER DEFAULT 0, doDate TEXT, doPhoto TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL,
+    user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT,
+    date TEXT NOT NULL DEFAULT (date('now')), time TEXT NOT NULL DEFAULT (time('now'))
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS checkins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS sim_approved (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, groupKey TEXT UNIQUE NOT NULL
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  // Add missing columns to existing dbs
+  try { db.run('ALTER TABLE leads ADD COLUMN spkSection INTEGER DEFAULT 0'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN spkDate TEXT'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN doSection INTEGER DEFAULT 0'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN doDate TEXT'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN doPhoto TEXT'); } catch(e){}
+}
+
+function seedData() {
+  const row = get('SELECT COUNT(*) as c FROM users');
+  if (row && row.c > 0) return;
+
+  const h = pw => bcrypt.hashSync(pw, 10);
+  const users = [
+    [1, 'rio',     h('123'), 'Rio Antonio', 'director',       null],
+    [2, 'admin',   h('123'), 'Maria',       'admin',          null],
+    [3, 'bm',      h('1'),   'Rocky',       'branch_manager', null],
+    [4, 'sm',      h('1'),   'Rizky',       'sales_manager',  null],
+    [5, 'yanwar',  h('1'),   'Yanwar',      'supervisor',     null],
+    [6, 'sarul',   h('1'),   'Sarul',       'supervisor',     null],
+    [7, 'chandra', h('1'),   'Chandra',     'supervisor',     null],
+  ];
+  users.forEach(u => db.run(
+    'INSERT INTO users (id,username,password,fullName,role,supervisorId,active,createdAt) VALUES (?,?,?,?,?,?,1,?)',
+    [...u, '2026-01-01']
+  ));
+
+  const settings = {
+    statuses: ['Hot','Warm','Cold','SPK','LOST'],
+    sources: ['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex'],
+    carTypes: ['Tiggo 8 Comfort','Tiggo 8 Premium','Tiggo Cross Comfort','Tiggo Cross Premium','Tiggo Cross CSH','Chery E5','Chery C5 Z','Chery C5 RZ','Chery C5 CSH','J6 FWD','J6 IWD','J6T FWD','J6T IWD','Omoda GT FWD','Tiggo 9 CSH'],
+    statusColors: { Hot:'var(--red)',Warm:'var(--org)',Cold:'var(--acc)',SPK:'var(--grn)',LOST:'var(--t3)' },
+    sourceColors: { 'Walk-in':'var(--acc)','Social Media':'var(--pur)',Ads:'var(--red)',Referral:'var(--org)',Exhibition:'var(--pnk)',Event:'var(--cyn)',Movex:'var(--grn)' }
+  };
+  Object.entries(settings).forEach(([k, v]) =>
+    db.run('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)', [k, JSON.stringify(v)]));
+  console.log('✅ 7 default users created');
+}
+
+module.exports = { getDb, run, get, all, lastId, persist };
