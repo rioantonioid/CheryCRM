@@ -631,28 +631,24 @@ function srcBg(s){return SC_BG_MAP[srcC(s)]||'rgba(100,116,139,.12)'}
 /* ═══════════════════════════════════════
    STORAGE
    ═══════════════════════════════════════ */
-const G=k=>JSON.parse(localStorage.getItem(k));
-const S=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+/* ═══════════════════════════════════════
+   SERVER-BACKED STORAGE (replaces localStorage)
+   ═══════════════════════════════════════ */
+window._db={};
+const G=k=>{
+  if(k==='al_theme') return JSON.parse(localStorage.getItem('al_theme'));
+  return window._db[k]||null;
+};
+const S=(k,v)=>{
+  if(k==='al_theme'){localStorage.setItem(k,JSON.stringify(v));return}
+  window._db[k]=v;
+  // Async save to server (fire and forget)
+  fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,value:v}),credentials:'same-origin'}).catch(e=>console.warn('Save failed:',k,e));
+};
 const $=id=>document.getElementById(id);
 
-/* DEFAULT DATA + VERSION MIGRATION */
+/* SERVER MODE — Data loaded from /api/sync on login. No localStorage init needed. */
 const CRM_VERSION = 8;
-const storedVersion = G('al_version');
-if(!storedVersion || storedVersion < CRM_VERSION){
-  S('al_statuses',['Hot','Warm','Cold','SPK','LOST']);
-  S('al_sources',['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex']);
-  S('al_cartypes',['Tiggo 8 Comfort','Tiggo 8 Premium','Tiggo Cross Comfort','Tiggo Cross Premium','Tiggo Cross CSH','Chery E5','Chery C5 Z','Chery C5 RZ','Chery C5 CSH','J6 FWD','J6 IWD','J6T FWD','J6T IWD','Omoda GT FWD','Tiggo 9 CSH']);
-  S('al_custom_colors',{Hot:'var(--red)',Warm:'var(--org)',Cold:'var(--acc)',SPK:'var(--grn)',LOST:'var(--t3)'});
-  S('al_source_colors',{'Walk-in':'var(--acc)','Social Media':'var(--pur)',Ads:'var(--red)',Referral:'var(--org)',Exhibition:'var(--pnk)',Event:'var(--cyn)',Movex:'var(--grn)'});
-  S('al_version', CRM_VERSION);
-}
-if(!G('al_users')){S('al_users',[
-  {id:1,username:'admin',password:'admin123',fullName:'Nurul Hana',role:'admin',supervisorId:null,active:true,createdAt:'2026-01-01'},
-])}
-if(!G('al_leads')){S('al_leads',[])}
-if(!G('al_activities')){S('al_activities',[])}
-if(!G('al_checkins')){S('al_checkins',[])}
-if(!G('al_sim_approved')){S('al_sim_approved',[])}
 let CU=null; // currentUser
 let PAGE='dashboard';
 
@@ -690,11 +686,41 @@ function initials(n){return n.split(' ').map(w=>w[0]).join('').slice(0,2)}
    ═══════════════════════════════════════ */
 function doLogin(){
   const u=$('loginUser').value.trim(),p=$('loginPass').value;
-  const f=G('al_users').find(x=>x.username===u&&x.password===p&&x.active);
-  if(!f){$('loginError').textContent='Invalid credentials or account disabled';$('loginError').style.display='block';return}
-  CU=f;S('al_session',f.id);$('loginPage').classList.add('hidden');$('appWrap').classList.remove('hidden');initApp();
+  if(!u||!p){$('loginError').textContent='Enter username and password';$('loginError').style.display='block';return}
+  $('loginError').style.display='none';
+  fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p}),credentials:'same-origin'})
+    .then(r=>{if(!r.ok) throw r; return r.json()})
+    .then(()=>syncFromServer())
+    .catch(async(e)=>{
+      const msg=e.json?await e.json().then(j=>j.error).catch(()=>'Login failed'):'Connection error';
+      $('loginError').textContent=msg;$('loginError').style.display='block';
+    });
 }
-function doLogout(){localStorage.removeItem('al_session');CU=null;$('appWrap').classList.add('hidden');$('loginPage').classList.remove('hidden');$('loginUser').value='';$('loginPass').value='';$('loginError').style.display='none'}
+
+function doLogout(){
+  fetch('/api/logout',{method:'POST',credentials:'same-origin'}).catch(()=>{});
+  CU=null;window._db={};
+  $('appWrap').classList.add('hidden');$('loginPage').classList.remove('hidden');
+  $('loginUser').value='';$('loginPass').value='';$('loginError').style.display='none';
+}
+
+function syncFromServer(){
+  return fetch('/api/sync',{credentials:'same-origin'})
+    .then(r=>{if(!r.ok) throw r; return r.json()})
+    .then(data=>{
+      // Load all data into in-memory cache
+      Object.keys(data).forEach(k=>{ if(data[k]!==null) window._db[k]=data[k]; });
+      // Find current user
+      const sid=data.al_session;
+      const users=data.al_users||[];
+      const u=users.find(x=>x.id===sid&&x.active);
+      if(!u) throw new Error('User not found');
+      CU=u;
+      $('loginPage').classList.add('hidden');$('appWrap').classList.remove('hidden');
+      initApp();
+    })
+    .catch(e=>{console.warn('Sync failed:',e)});
+}
 
 function toggleTheme(){
   const isDark=document.body.classList.toggle('dark');
@@ -722,30 +748,46 @@ function doChangePwd(){
   const err=$('cpError');
   err.style.display='none';
   if(!cur||!nw||!conf){err.textContent='All fields are required';err.style.display='block';return}
-  if(cur!==CU.password){err.textContent='Current password is incorrect';err.style.display='block';return}
   if(nw.length<4){err.textContent='New password must be at least 4 characters';err.style.display='block';return}
   if(nw!==conf){err.textContent='New passwords do not match';err.style.display='block';return}
   if(nw===cur){err.textContent='New password must be different from current';err.style.display='block';return}
-  // Update password
-  let users=G('al_users');
-  users=users.map(u=>u.id===CU.id?{...u,password:nw}:u);
-  S('al_users',users);
-  CU.password=nw;
-  S('al_session',CU);
-  closeMd();toast('Password updated successfully');
+  fetch('/api/me/password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:cur,newPassword:nw}),credentials:'same-origin'})
+    .then(r=>{if(!r.ok) return r.json().then(j=>{throw new Error(j.error)}); return r.json()})
+    .then(()=>{closeMd();toast('Password updated successfully')})
+    .catch(e=>{err.textContent=e.message||'Password change failed';err.style.display='block'});
 }
-function checkSession(){const sid=G('al_session');if(sid){const u=G('al_users').find(x=>x.id===sid&&x.active);if(u){CU=u;$('loginPage').classList.add('hidden');$('appWrap').classList.remove('hidden');initApp()}}}
+function checkSession(){
+  fetch('/api/me',{credentials:'same-origin'})
+    .then(r=>{if(!r.ok) throw r; return r.json()})
+    .then(()=>syncFromServer())
+    .catch(()=>{/* No session — stay on login page */});
+}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('loginPage').classList.contains('hidden'))doLogin()});
 
 /* ═══════════════════════════════════════
    APP INIT
    ═══════════════════════════════════════ */
 function initApp(){
-  autoLost(); // Check for 14-day inactive leads
+  autoLost();
   $('sUname').textContent=CU.fullName;
   $('sUrole').className='side-urole rc-'+CU.role;$('sUrole').textContent=rLabel(CU.role);
   $('sUperm').textContent=PERM_DESC[CU.role];
   buildNav();go('dashboard');
+  // Auto-sync from server every 30s to pick up other users' changes
+  if(window._syncTimer) clearInterval(window._syncTimer);
+  window._syncTimer=setInterval(()=>{
+    fetch('/api/sync',{credentials:'same-origin'}).then(r=>r.json()).then(data=>{
+      Object.keys(data).forEach(k=>{if(data[k]!==null&&k!=='al_theme') window._db[k]=data[k]});
+      buildNav(); // Update badges
+    }).catch(()=>{});
+  },30000);
+  // Also sync when tab becomes visible
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&CU) fetch('/api/sync',{credentials:'same-origin'}).then(r=>r.json()).then(data=>{
+      Object.keys(data).forEach(k=>{if(data[k]!==null&&k!=='al_theme') window._db[k]=data[k]});
+      buildNav();go(PAGE);
+    }).catch(()=>{});
+  });
 }
 
 function buildNav(){
@@ -1251,7 +1293,7 @@ function openLF(id){
   $('modalC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeMd()"><div class="md">
     <div class="md-h"><span class="md-t">${l?'Edit Lead':'New Lead'}</span><button class="md-x" onclick="closeMd()">✕</button></div>
     <div class="md-b">
-      <div class="fr2"><div class="fg"><label class="fl">Customer Name *</label><input class="fi" id="fN" value="${l?l.name:''}" placeholder="Full name"></div><div class="fg"><label class="fl">Phone *</label><input class="fi" id="fP" type="tel" inputmode="numeric" value="${l?l.phone:''}" placeholder="0123456789" oninput="this.value=this.value.replace(/[^0-9+]/g,'');checkDupeLive(this.value,${id||0})"></div></div>
+      <div class="fr2"><div class="fg"><label class="fl">Customer Name *</label><input class="fi" id="fN" value="${l?l.name:''}" placeholder="Full name"></div><div class="fg"><label class="fl">Phone *</label><input class="fi" id="fP" type="tel" inputmode="numeric" value="${l?l.phone:''}" placeholder="08xxxxxxxxxx" oninput="this.value=this.value.replace(/[^0-9+]/g,'');showPhoneValidation(this.value,${id||0})"><div id="phoneValid"></div></div></div>
       <div id="dupeWarn"></div>
       <div class="fr3"><div class="fg"><label class="fl">Car Type</label><select class="fs" id="fCT">${cts.map(c=>`<option ${l&&l.carType===c?'selected':''}>${c}</option>`).join('')}</select></div><div class="fg"><label class="fl">Source</label><select class="fs" id="fSo">${srcs.map(s=>`<option ${l&&l.source===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="fg"><label class="fl">Status</label><select class="fs" id="fStt">${sts.map(s=>`<option ${l&&l.status===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
       <div class="fr2"><div class="fg"><label class="fl">Date</label><input class="fi" id="fD" type="date" value="${l?l.date:td}"></div><div class="fg"><label class="fl">Follow Up</label><input class="fi" id="fFU" type="date" value="${l?l.followUp:new Date(Date.now()+86400000).toISOString().split('T')[0]}"></div></div>
@@ -1259,6 +1301,7 @@ function openLF(id){
     </div>
     <div class="md-f"><button class="btn btn-s" onclick="closeMd()">Cancel</button><button class="btn btn-p" onclick="saveL(${id||0})">Save</button></div>
   </div></div>`;
+  if(l&&l.phone) setTimeout(()=>showPhoneValidation(l.phone,id),50);
 }
 
 /* ═══════════════════════════════════════
@@ -1441,6 +1484,51 @@ function findDupes(phone,excludeId){
   });
 }
 
+/* ═══════════════════════════════════════
+   PHONE VALIDATION (Indonesian)
+   ═══════════════════════════════════════ */
+const ID_OPERATORS={
+  '0811':'Telkomsel','0812':'Telkomsel','0813':'Telkomsel','0821':'Telkomsel','0822':'Telkomsel','0823':'Telkomsel','0851':'Telkomsel','0852':'Telkomsel','0853':'Telkomsel',
+  '0814':'Indosat','0815':'Indosat','0816':'Indosat','0855':'Indosat','0856':'Indosat','0857':'Indosat','0858':'Indosat',
+  '0817':'XL','0818':'XL','0819':'XL','0859':'XL','0877':'XL','0878':'XL','0879':'XL',
+  '0831':'Axis','0832':'Axis','0833':'Axis','0838':'Axis',
+  '0895':'Three','0896':'Three','0897':'Three','0898':'Three','0899':'Three',
+  '0881':'Smartfren','0882':'Smartfren','0883':'Smartfren','0884':'Smartfren','0885':'Smartfren','0886':'Smartfren','0887':'Smartfren','0888':'Smartfren','0889':'Smartfren',
+};
+
+function validatePhone(phone){
+  if(!phone) return {valid:false,msg:'Phone number is required',operator:null};
+  let clean=phone.replace(/[^0-9+]/g,'');
+  // Convert +62 to 0
+  if(clean.startsWith('+62')) clean='0'+clean.slice(3);
+  if(clean.startsWith('62')&&clean.length>10) clean='0'+clean.slice(2);
+
+  if(!clean.startsWith('0')) return {valid:false,msg:'Must start with 0 or +62',operator:null,clean};
+  if(clean.length<10) return {valid:false,msg:'Too short — need at least 10 digits',operator:null,clean};
+  if(clean.length>13) return {valid:false,msg:'Too long — maximum 13 digits',operator:null,clean};
+
+  // Check operator prefix (first 4 digits)
+  const prefix=clean.slice(0,4);
+  const operator=ID_OPERATORS[prefix];
+  if(!operator) return {valid:false,msg:`Unknown prefix ${prefix} — not a recognized Indonesian operator`,operator:null,clean};
+
+  return {valid:true,msg:null,operator,clean};
+}
+
+function showPhoneValidation(phone,excludeId){
+  const vw=$('phoneValid');
+  if(!vw){checkDupeLive(phone,excludeId);return}
+  if(!phone||phone.length<3){vw.innerHTML='';checkDupeLive(phone,excludeId);return}
+
+  const v=validatePhone(phone);
+  if(v.valid){
+    vw.innerHTML=`<div style="font-size:10px;padding:4px 0;color:var(--grn);font-weight:600">✓ Valid — ${v.operator}</div>`;
+  }else{
+    vw.innerHTML=`<div style="font-size:10px;padding:4px 0;color:var(--org);font-weight:600">⚠ ${v.msg}</div>`;
+  }
+  checkDupeLive(phone,excludeId);
+}
+
 function checkDupeLive(phone,excludeId){
   const w=$('dupeWarn');if(!w)return;
   const dupes=findDupes(phone,excludeId);
@@ -1553,7 +1641,9 @@ function openLD(id){
     <div class="act-log">${acts.length?acts.map(a=>{const au=userByUn(a.user);return `<div class="act-item"><div class="act-dot" style="background:${actColors[a.action]||'var(--t4)'}"></div><div class="act-body"><div class="act-text">${a.action==='note'?`<b>${au?au.fullName:a.user}:</b> ${a.detail}`:a.action==='status'?`<b>${au?au.fullName:a.user}</b> ${a.detail}`:a.action==='moved'?`<b>${au?au.fullName:a.user}</b> ${a.detail}`:a.action==='created'?`<b>${au?au.fullName:a.user}</b> created this lead`:`<b>${au?au.fullName:a.user}</b> ${a.detail}`}</div><div class="act-meta">${a.date} ${a.time}</div></div></div>`}).join(''):'<div style="font-size:11px;color:var(--t4);padding:8px 0">No activity yet</div>'}</div></div>`;
 
   // Detail fields
-  const fields=[{l:'Phone',v:l.phone},{l:'Car Type',v:l.carType},{l:'Source',v:`<span class="badge" style="background:${srcBg(l.source)};color:${srcC(l.source)};font-size:10px"><span class="bdot" style="background:${srcC(l.source)}"></span>${l.source}</span>`},{l:'Date',v:l.date},{l:'Follow Up',v:fuCountdown(l.followUp)+(l.followUp?` <span style="font-size:9px;color:var(--t4)">(${l.followUp})</span>`:'')},{l:'Sales Person',v:u?`${u.fullName} <span class="badge rc-${u.role}" style="font-size:8px;padding:1px 6px">${rLabel(u.role)}</span>`:l.createdBy},{l:'Supervisor',v:sup?sup.fullName:'—'},{l:'Created',v:l.createdAt}];
+  const pv=validatePhone(l.phone);
+  const phoneDisplay=l.phone+(pv.valid?` <span style="font-size:9px;color:var(--grn);font-weight:600">(${pv.operator})</span>`:`<span style="font-size:9px;color:var(--org);font-weight:600"> ⚠ ${pv.msg||'Invalid'}</span>`);
+  const fields=[{l:'Phone',v:phoneDisplay},{l:'Car Type',v:l.carType},{l:'Source',v:`<span class="badge" style="background:${srcBg(l.source)};color:${srcC(l.source)};font-size:10px"><span class="bdot" style="background:${srcC(l.source)}"></span>${l.source}</span>`},{l:'Date',v:l.date},{l:'Follow Up',v:fuCountdown(l.followUp)+(l.followUp?` <span style="font-size:9px;color:var(--t4)">(${l.followUp})</span>`:'')},{l:'Sales Person',v:u?`${u.fullName} <span class="badge rc-${u.role}" style="font-size:8px;padding:1px 6px">${rLabel(u.role)}</span>`:l.createdBy},{l:'Supervisor',v:sup?sup.fullName:'—'},{l:'Created',v:l.createdAt}];
   if(l.spkDate) fields.push({l:'SPK Date',v:`<span style="color:var(--grn);font-weight:600">${l.spkDate}</span>`});
   if(l.doDate) fields.push({l:'DO Date',v:`<span style="color:var(--pur);font-weight:600">${l.doDate}</span>`});
 
@@ -2275,7 +2365,7 @@ function renderSets(){
     `<div class="set-card"><div class="set-title">Data</div><div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-s btn-sm" onclick="expCSV('all')">📥 Export All CSV</button>
       <button class="btn btn-p btn-sm" onclick="openImportCSV()">📤 Import CSV</button>
-      <button class="btn btn-d btn-sm" onclick="if(confirm('Reset ALL data? Cannot be undone.')){localStorage.clear();location.reload()}">⚠ Reset Everything</button>
+      <button class="btn btn-d btn-sm" onclick="if(confirm('This will log you out and reload. Server data is preserved. To fully reset, contact your administrator.')){doLogout();location.reload()}">⚠ Reset Session</button>
     </div>
     <div style="margin-top:10px;font-size:10px;color:var(--t4);line-height:1.5">
       <strong style="color:var(--t3)">CSV Format:</strong> Name, Phone, Car Type, Source, Lead Date, Status, Follow Up, Notes<br>

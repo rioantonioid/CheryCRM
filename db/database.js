@@ -21,50 +21,19 @@ async function getDb() {
   return db;
 }
 
-function persist() {
-  if (!db) return;
-  fs.writeFileSync(DB_PATH, Buffer.from(db.export()));
-}
-
-function run(sql, params = []) {
-  db.run(sql, params);
-  persist();
-}
-
+function persist() { if (!db) return; fs.writeFileSync(DB_PATH, Buffer.from(db.export())); }
+function run(sql, params = []) { db.run(sql, params); persist(); }
 function get(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  if (stmt.step()) {
-    const cols = stmt.getColumnNames();
-    const vals = stmt.get();
-    stmt.free();
-    const row = {};
-    cols.forEach((c, i) => row[c] = vals[i]);
-    return row;
-  }
-  stmt.free();
-  return null;
+  const stmt = db.prepare(sql); stmt.bind(params);
+  if (stmt.step()) { const cols = stmt.getColumnNames(), vals = stmt.get(), row = {}; cols.forEach((c, i) => row[c] = vals[i]); stmt.free(); return row; }
+  stmt.free(); return null;
 }
-
 function all(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) {
-    const cols = stmt.getColumnNames();
-    const vals = stmt.get();
-    const row = {};
-    cols.forEach((c, i) => row[c] = vals[i]);
-    rows.push(row);
-  }
-  stmt.free();
-  return rows;
+  const stmt = db.prepare(sql); stmt.bind(params); const rows = [];
+  while (stmt.step()) { const cols = stmt.getColumnNames(), vals = stmt.get(), row = {}; cols.forEach((c, i) => row[c] = vals[i]); rows.push(row); }
+  stmt.free(); return rows;
 }
-
-function lastId() {
-  const r = get('SELECT last_insert_rowid() as id');
-  return r ? r.id : null;
-}
+function lastId() { const r = get('SELECT last_insert_rowid() as id'); return r ? r.id : null; }
 
 function initSchema() {
   db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -78,43 +47,44 @@ function initSchema() {
     carType TEXT DEFAULT 'Tiggo 8 Comfort', source TEXT DEFAULT 'Walk-in',
     date TEXT NOT NULL DEFAULT (date('now')), status TEXT DEFAULT 'Hot',
     followUp TEXT, notes TEXT, createdBy TEXT NOT NULL,
-    createdAt TEXT NOT NULL DEFAULT (date('now')),
-    updatedAt TEXT, updatedBy TEXT
+    createdAt TEXT NOT NULL DEFAULT (date('now')), updatedAt TEXT, updatedBy TEXT,
+    spkSection INTEGER DEFAULT 0, spkDate TEXT,
+    doSection INTEGER DEFAULT 0, doDate TEXT, doPhoto TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL,
+    user TEXT NOT NULL, action TEXT NOT NULL, detail TEXT,
+    date TEXT NOT NULL DEFAULT (date('now')), time TEXT NOT NULL DEFAULT (time('now'))
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS checkins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS sim_approved (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, groupKey TEXT UNIQUE NOT NULL
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  // Add missing columns to existing dbs
+  try { db.run('ALTER TABLE leads ADD COLUMN spkSection INTEGER DEFAULT 0'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN spkDate TEXT'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN doSection INTEGER DEFAULT 0'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN doDate TEXT'); } catch(e){}
+  try { db.run('ALTER TABLE leads ADD COLUMN doPhoto TEXT'); } catch(e){}
 }
 
 function seedData() {
   const row = get('SELECT COUNT(*) as c FROM users');
   if (row && row.c > 0) return;
-
-  const h = pw => bcrypt.hashSync(pw, 10);
-  const users = [
-    [1,'admin',h('admin123'),'Nurul Hana','admin',null],
-  ];
-  users.forEach(u => db.run(
-    'INSERT INTO users (id,username,password,fullName,role,supervisorId,active,createdAt) VALUES (?,?,?,?,?,?,1,?)',
-    [...u, '2026-01-01']
-  ));
-
-  // No demo leads - start fresh
-
+  db.run('INSERT INTO users (id,username,password,fullName,role,supervisorId,active,createdAt) VALUES (?,?,?,?,?,?,1,?)',
+    [1,'admin',bcrypt.hashSync('admin123',10),'Nurul Hana','admin',null,'2026-01-01']);
   const settings = {
     statuses: ['Hot','Warm','Cold','SPK','LOST'],
     sources: ['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex'],
     carTypes: ['Tiggo 8 Comfort','Tiggo 8 Premium','Tiggo Cross Comfort','Tiggo Cross Premium','Tiggo Cross CSH','Chery E5','Chery C5 Z','Chery C5 RZ','Chery C5 CSH','J6 FWD','J6 IWD','J6T FWD','J6T IWD','Omoda GT FWD','Tiggo 9 CSH'],
-    statusColors: {
-      Hot:'#EF4444',Warm:'#F59E0B',Cold:'#3B82F6',SPK:'#22C55E',LOST:'#64748B'
-    },
-    sourceColors: {
-      'Walk-in':'#3B82F6','Social Media':'#A78BFA',Ads:'#EF4444',
-      Referral:'#F59E0B',Exhibition:'#EC4899',Event:'#06B6D4',Movex:'#22C55E'
-    }
+    statusColors: { Hot:'var(--red)',Warm:'var(--org)',Cold:'var(--acc)',SPK:'var(--grn)',LOST:'var(--t3)' },
+    sourceColors: { 'Walk-in':'var(--acc)','Social Media':'var(--pur)',Ads:'var(--red)',Referral:'var(--org)',Exhibition:'var(--pnk)',Event:'var(--cyn)',Movex:'var(--grn)' }
   };
   Object.entries(settings).forEach(([k, v]) =>
-    db.run('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)', [k, JSON.stringify(v)])
-  );
-
+    db.run('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)', [k, JSON.stringify(v)]));
   console.log('✅ Admin account created (username: admin)');
 }
 

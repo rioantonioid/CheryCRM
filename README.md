@@ -1,53 +1,61 @@
-# AutoLead CRM
+# AutoLead CRM — Chery Batam
 
-Car Dealership Lead Management System with role-based access control.
-
-## Features
-
-- 🔐 6-tier role hierarchy (Director, Admin, Branch Manager, Sales Manager, Supervisor, Sales)
-- 📊 Dashboard with charts & analytics
-- 📋 Lead management with filtering & search
-- 👥 Team management & visibility rules
-- 📥 CSV export
-- 🎨 Customizable statuses with color coding
-- 💾 SQLite database (shared across all users)
+Multi-user Lead Management System with shared database.
 
 ## Quick Start
 
 ```bash
+cd autolead-crm
 npm install
-npm start
+node server.js
 ```
 
-Then open **http://localhost:3000**
+Open http://localhost:3000 — Login: `admin` / `admin123`
 
-## Default Account
+## How It Works
 
-| Username | Password | Role |
-|---|---|---|
-| admin | admin123 | Admin (full access) |
+All users connect to the same server, same database. When User A adds a lead, User B sees it automatically (syncs every 30 seconds + on tab focus).
 
-> **First thing after deploy:** Log in as admin → Users → change the password and add your team members.
+- **Database:** SQLite (file: `db/autolead.db`, auto-created on first run)
+- **Session:** Server-side sessions (cookie-based)
+- **Passwords:** bcrypt hashed
+- **Photos:** Base64 stored in database
 
-## Tech Stack
+## Deploy to Render.com (Free)
 
-- **Backend:** Node.js, Express.js
-- **Database:** SQLite (better-sqlite3)
-- **Auth:** bcrypt + express-session
-- **Frontend:** Vanilla HTML/CSS/JS
+1. Push to GitHub
+2. Go to render.com → New Web Service
+3. Connect your repo
+4. Build Command: `npm install`
+5. Start Command: `node server.js`
+6. Add env: `SESSION_SECRET=your-random-secret-here`
+
+## Deploy to Railway.app (Free)
+
+1. Push to GitHub
+2. Go to railway.app → New Project → Deploy from GitHub
+3. It auto-detects Node.js
+4. Add env: `SESSION_SECRET=your-random-secret-here`
+
+## Deploy to VPS
+
+```bash
+git clone <your-repo> && cd autolead-crm
+npm install
+SESSION_SECRET=your-secret PORT=3000 node server.js
+```
+
+Use PM2 for production: `pm2 start server.js`
 
 ## Environment Variables
 
 | Variable | Default | Description |
-|---|---|---|
+|----------|---------|-------------|
 | PORT | 3000 | Server port |
-| SESSION_SECRET | autolead-crm-secret-change-this | Session encryption key |
-| NODE_ENV | development | Environment |
+| SESSION_SECRET | autolead-crm-secret-change-this | Session encryption key (CHANGE THIS!) |
 
-## Deploy to Render / Railway
+## Default Login
 
-1. Push to GitHub
-2. Connect repo to Render or Railway
-3. Set build command: `npm install`
-4. Set start command: `npm start`
-5. Add `SESSION_SECRET` environment variable
+- Username: `admin`
+- Password: `admin123`
+- **Change immediately after first login**
