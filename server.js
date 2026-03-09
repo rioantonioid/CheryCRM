@@ -46,6 +46,35 @@ app.post('/api/login', (req, res) => {
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ ok: true }); });
 app.get('/api/me', auth, (req, res) => res.json({ user: req.user, permissions: RC[req.user.role] }));
 
+// ══════ DUPLICATE CHECK (checks ALL leads, not just visible) ══════
+app.get('/api/check-phone', auth, (req, res) => {
+  const phone = (req.query.phone || '').replace(/[^0-9]/g, '');
+  const excludeId = Number(req.query.excludeId) || 0;
+  if (phone.length < 4) return res.json([]);
+  const leads = all('SELECT id,name,phone,status,source,createdBy,createdAt FROM leads WHERE status != ? ORDER BY id DESC', ['LOST']);
+  const dupes = leads.filter(l => {
+    if (excludeId && l.id === excludeId) return false;
+    return l.phone.replace(/[^0-9]/g, '') === phone;
+  });
+  // Enrich with user names
+  const users = all('SELECT username,fullName FROM users');
+  const byUn = {}; users.forEach(u => byUn[u.username] = u.fullName);
+  res.json(dupes.map(d => ({...d, salesName: byUn[d.createdBy] || d.createdBy})));
+});
+
+// ══════ CHANGE PASSWORD ══════
+app.put('/api/me/password', auth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new password required' });
+  if (newPassword.length < 1) return res.status(400).json({ error: 'New password is required' });
+  const user = get('SELECT * FROM users WHERE id=?', [req.user.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!bcrypt.compareSync(currentPassword, user.password))
+    return res.status(403).json({ error: 'Current password is incorrect' });
+  run('UPDATE users SET password=? WHERE id=?', [bcrypt.hashSync(newPassword, 10), user.id]);
+  res.json({ ok: true });
+});
+
 // ══════ SYNC — The magic endpoint ══════
 // Returns ALL data the frontend needs in one call
 // Frontend stores in memory, uses G()/S() like before
