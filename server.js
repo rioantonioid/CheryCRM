@@ -10,7 +10,15 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({limit:'10mb'}));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html with no-cache headers
+app.get('/', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0, etag: false }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'autolead-crm-secret-change-this',
   resave: false, saveUninitialized: false,
@@ -32,6 +40,11 @@ function auth(req, res, next) {
   if (!user) return res.status(401).json({ error: 'Session invalid' });
   req.user = user; next();
 }
+
+// ══════ VERSION CHECK ══════
+app.get('/api/version', (req, res) => {
+  res.json({ build: '2026-03-10', status: 'ok' });
+});
 
 // ══════ AUTH ══════
 app.post('/api/login', (req, res) => {
