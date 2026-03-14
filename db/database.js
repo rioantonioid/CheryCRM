@@ -6,6 +6,15 @@ let store = {};
 function load() {
   try { if (fs.existsSync(DB_PATH)) store = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch(e) { store = {}; }
   if (!store.users || !store.users.length) seed();
+  // Migrate: ensure cartypes + colors exist even on existing data
+  if (!store.cartypes || !store.cartypes.length) {
+    store.cartypes = ['Tiggo 8 Comfort','Tiggo 8 Premium','Tiggo Cross Comfort','Tiggo Cross Premium','Tiggo Cross CSH','Chery E5','Chery C5 Z','Chery C5 RZ','Chery C5 CSH','J6 FWD','J6 IWD','J6T FWD','J6T IWD','Omoda GT FWD','Tiggo 9 CSH'];
+    save();
+  }
+  if (!store.statuses) { store.statuses = ['Hot','Warm','Cold','SPK','LOST']; save(); }
+  if (!store.sources) { store.sources = ['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex']; save(); }
+  if (!store.custom_colors) { store.custom_colors = {Hot:'var(--red)',Warm:'var(--org)',Cold:'var(--acc)',SPK:'var(--grn)',LOST:'var(--t3)'}; save(); }
+  if (!store.source_colors) { store.source_colors = {'Walk-in':'var(--acc)','Social Media':'var(--pur)',Ads:'var(--red)',Referral:'var(--org)',Exhibition:'var(--pnk)',Event:'var(--cyn)',Movex:'var(--grn)'}; save(); }
 }
 
 function save() {
@@ -44,6 +53,11 @@ function seed() {
   ];
   ['leads','activities','checkins','sim_approved','schedules','events'].forEach(k=>{if(!store[k])store[k]=[]});
   if(!store.settings) store.settings={};
+  store.statuses = ['Hot','Warm','Cold','SPK','LOST'];
+  store.sources = ['Walk-in','Social Media','Ads','Referral','Exhibition','Event','Movex'];
+  store.cartypes = ['Tiggo 8 Comfort','Tiggo 8 Premium','Tiggo Cross Comfort','Tiggo Cross Premium','Tiggo Cross CSH','Chery E5','Chery C5 Z','Chery C5 RZ','Chery C5 CSH','J6 FWD','J6 IWD','J6T FWD','J6T IWD','Omoda GT FWD','Tiggo 9 CSH'];
+  store.custom_colors = {Hot:'var(--red)',Warm:'var(--org)',Cold:'var(--acc)',SPK:'var(--grn)',LOST:'var(--t3)'};
+  store.source_colors = {'Walk-in':'var(--acc)','Social Media':'var(--pur)',Ads:'var(--red)',Referral:'var(--org)',Exhibition:'var(--pnk)',Event:'var(--cyn)',Movex:'var(--grn)'};
   save();
   console.log('  Seeded ' + store.users.length + ' users');
 }

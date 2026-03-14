@@ -109,3 +109,13 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`\n🚗 Chery Batam CRM running at http://localhost:${PORT}\n   Build: 2026-03-14\n`));
+
+// Force reset settings (delete data.json, re-seed)
+app.get('/api/reset-settings', (req, res) => {
+  const fs = require('fs');
+  const dbPath = path.join(__dirname, 'db', 'data.json');
+  try { fs.unlinkSync(dbPath); } catch(e) {}
+  delete require.cache[require.resolve('./db/database')];
+  const freshDb = require('./db/database');
+  res.json({ ok: true, message: 'Settings reset. Restart app.', cartypes: freshDb.getStore().cartypes?.length });
+});
